@@ -10,11 +10,11 @@
   };
 
   outputs =
-    { nixpkgs, rust-overlay, flake-utils, nixgl, ... }:
+    { self, nixpkgs, rust-overlay, flake-utils, nixgl, nix-ros-overlay, ... }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        overlays = [ (import rust-overlay) ];
+        overlays = [ (import rust-overlay) nix-ros-overlay.overlays.default ];
 
         pkgs = import nixpkgs {
           inherit system overlays;
@@ -63,6 +63,13 @@
               pkgs.mold
               pkgs.cmake
               pkgs.pkg-config
+              pkgs.colcon
+              (with pkgs.rosPackages.jazzy; buildEnv {
+                paths = [
+                  ros-core
+                  desktop-full
+                ];
+              })
             ]
             ++ pkgs.lib.optionals haveNvidiaPinned [
               nixglFixed.nixGLNvidia
@@ -112,4 +119,9 @@
         };
       }
     );
+
+  nixConfig = {
+    extra-substituters = [ "https://ros.cachix.org" ];
+    extra-trusted-public-keys = [ "ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=" ];
+  };
 }
