@@ -68,6 +68,8 @@
                 paths = [
                   ros-core
                   desktop-full
+                  cyclonedds
+                  rmw-cyclonedds-cpp
                 ];
               })
             ]
