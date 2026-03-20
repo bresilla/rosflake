@@ -15,11 +15,14 @@
       system:
       let
         overlays = [ (import rust-overlay) nix-ros-overlay.overlays.default ];
+        rosDistro = "jazzy";
 
         pkgs = import nixpkgs {
           inherit system overlays;
           config.allowUnfree = true;
         };
+
+        rosPkgs = pkgs.rosPackages.${rosDistro};
 
         nvidiaVersion = builtins.getEnv "NIXGL_NVIDIA_VERSION";
         nvidiaHash = builtins.getEnv "NIXGL_NVIDIA_HASH";
@@ -64,7 +67,7 @@
               pkgs.cmake
               pkgs.pkg-config
               pkgs.colcon
-              (with pkgs.rosPackages.jazzy; buildEnv {
+              (with rosPkgs; buildEnv {
                 paths = [
                   ros-core
                   desktop-full
@@ -105,8 +108,8 @@
             pkgs.alsa-plugins
             pkgs.pipewire
           ];
-            shellHook = ''
-            jazzy_prefixes="${pkgs.rosPackages.jazzy.ament-cmake}:${pkgs.rosPackages.jazzy.ament-cmake-core}:${pkgs.rosPackages.jazzy.python-cmake-module}:${pkgs.rosPackages.jazzy.rmw}:${pkgs.rosPackages.jazzy.rosidl-default-generators}:${pkgs.rosPackages.jazzy.rosidl-runtime-c}:${pkgs.rosPackages.jazzy.rosidl-typesupport-c}:${pkgs.rosPackages.jazzy.rosidl-typesupport-interface}:${pkgs.rosPackages.jazzy.std-msgs}"
+          shellHook = ''
+            ros_prefixes="${rosPkgs.ament-cmake}:${rosPkgs.ament-cmake-core}:${rosPkgs.python-cmake-module}:${rosPkgs.rmw}:${rosPkgs.rosidl-default-generators}:${rosPkgs.rosidl-runtime-c}:${rosPkgs.rosidl-typesupport-c}:${rosPkgs.rosidl-typesupport-interface}:${rosPkgs.std-msgs}"
 
             prepend_prefixes() {
                 local var_name="$1"
@@ -115,9 +118,9 @@
                 existing_value="$(printenv "$var_name" 2>/dev/null || true)"
 
                 if [ -n "$existing_value" ]; then
-                    export "$var_name=$jazzy_prefixes:$existing_value"
+                    export "$var_name=$ros_prefixes:$existing_value"
                 else
-                    export "$var_name=$jazzy_prefixes"
+                    export "$var_name=$ros_prefixes"
                 fi
             }
 
