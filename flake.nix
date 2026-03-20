@@ -15,45 +15,20 @@
       system:
       let
         overlays = [ (import rust-overlay) nix-ros-overlay.overlays.default ];
-        rosDistro = "jazzy";
 
         pkgs = import nixpkgs {
           inherit system overlays;
           config.allowUnfree = true;
         };
 
-        rosPkgs = pkgs.rosPackages.${rosDistro};
+        roswsShell = import ./.rosws.nix { inherit pkgs; };
 
         nvidiaVersion = builtins.getEnv "NIXGL_NVIDIA_VERSION";
         nvidiaHash = builtins.getEnv "NIXGL_NVIDIA_HASH";
 
-        haveNvidiaPinned = nvidiaVersion != "" && nvidiaHash != "";
-
-        nixglFixed =
-          if haveNvidiaPinned then
-            pkgs.callPackage (nixgl.outPath + "/default.nix") {
-              inherit nvidiaVersion nvidiaHash;
-            }
-          else
-            null;
-
-        nixGLNvidiaWrapper =
-          if haveNvidiaPinned then
-            pkgs.writeShellScriptBin "nixGLNvidia" ''
-              real="$(echo ${nixglFixed.nixGLNvidia}/bin/nixGLNvidia-*)"
-              exec "$real" "$@"
-            ''
-          else
-            null;
-
-        nixVulkanNvidiaWrapper =
-          if haveNvidiaPinned then
-            pkgs.writeShellScriptBin "nixVulkanNvidia" ''
-              real="$(echo ${nixglFixed.nixVulkanNvidia}/bin/nixVulkanNvidia-*)"
-              exec "$real" "$@"
-            ''
-          else
-            null;
+        nixglShell = import ./.nixgl.nix {
+          inherit pkgs nixgl nvidiaVersion nvidiaHash;
+        };
       in
       {
         devShells.default = pkgs.mkShell {
@@ -67,21 +42,18 @@
               pkgs.cmake
               pkgs.pkg-config
               pkgs.colcon
-              (with rosPkgs; buildEnv {
+              (with pkgs.rosPackages.jazzy; buildEnv {
                 paths = [
                   ros-core
                   desktop-full
                   cyclonedds
                   rmw-cyclonedds-cpp
+                  ackermann-msgs
+                  moveit
                 ];
               })
             ]
-            ++ pkgs.lib.optionals haveNvidiaPinned [
-              nixglFixed.nixGLNvidia
-              nixglFixed.nixVulkanNvidia
-              nixGLNvidiaWrapper
-              nixVulkanNvidiaWrapper
-            ]
+            ++ nixglShell.packages
             ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
               pkgs.alsa-lib
               pkgs.alsa-plugins
@@ -108,37 +80,11 @@
             pkgs.alsa-plugins
             pkgs.pipewire
           ];
+
           shellHook = ''
-            ros_prefixes="${rosPkgs.ament-cmake}:${rosPkgs.ament-cmake-core}:${rosPkgs.python-cmake-module}:${rosPkgs.rmw}:${rosPkgs.rosidl-default-generators}:${rosPkgs.rosidl-runtime-c}:${rosPkgs.rosidl-typesupport-c}:${rosPkgs.rosidl-typesupport-interface}:${rosPkgs.std-msgs}"
-
-            prepend_prefixes() {
-                local var_name="$1"
-                local existing_value
-
-                existing_value="$(printenv "$var_name" 2>/dev/null || true)"
-
-                if [ -n "$existing_value" ]; then
-                    export "$var_name=$ros_prefixes:$existing_value"
-                else
-                    export "$var_name=$ros_prefixes"
-                fi
-            }
-
-            prepend_prefixes AMENT_PREFIX_PATH
-            prepend_prefixes CMAKE_PREFIX_PATH
-
-            if [ -n "$NIXGL_NVIDIA_VERSION" ] && [ -n "$NIXGL_NVIDIA_HASH" ]; then
-                export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/nvidia_icd.json
-                export VK_LOADER_LAYERS_DISABLE='*MESA_device_select*'
-                export ALSA_PLUGIN_DIR=${pkgs.pipewire}/lib/alsa-lib
-
-                echo "nixGL Nvidia pinned to $NIXGL_NVIDIA_VERSION"
-                echo "Using Vulkan driver manifest: $VK_DRIVER_FILES"
-                echo "Using ALSA plugins from: $ALSA_PLUGIN_DIR"
-            else
-                echo "nixGL Nvidia not configured"
-            fi
-            '';
+            ${roswsShell.shellHook}
+            ${nixglShell.shellHook}
+          '';
         };
       }
     );
