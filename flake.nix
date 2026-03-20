@@ -106,6 +106,24 @@
             pkgs.pipewire
           ];
             shellHook = ''
+            jazzy_prefixes="${pkgs.rosPackages.jazzy.ament-cmake}:${pkgs.rosPackages.jazzy.ament-cmake-core}:${pkgs.rosPackages.jazzy.python-cmake-module}:${pkgs.rosPackages.jazzy.rmw}:${pkgs.rosPackages.jazzy.rosidl-default-generators}:${pkgs.rosPackages.jazzy.rosidl-runtime-c}:${pkgs.rosPackages.jazzy.rosidl-typesupport-c}:${pkgs.rosPackages.jazzy.rosidl-typesupport-interface}:${pkgs.rosPackages.jazzy.std-msgs}"
+
+            prepend_prefixes() {
+                local var_name="$1"
+                local existing_value
+
+                existing_value="$(printenv "$var_name" 2>/dev/null || true)"
+
+                if [ -n "$existing_value" ]; then
+                    export "$var_name=$jazzy_prefixes:$existing_value"
+                else
+                    export "$var_name=$jazzy_prefixes"
+                fi
+            }
+
+            prepend_prefixes AMENT_PREFIX_PATH
+            prepend_prefixes CMAKE_PREFIX_PATH
+
             if [ -n "$NIXGL_NVIDIA_VERSION" ] && [ -n "$NIXGL_NVIDIA_HASH" ]; then
                 export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/nvidia_icd.json
                 export VK_LOADER_LAYERS_DISABLE='*MESA_device_select*'
